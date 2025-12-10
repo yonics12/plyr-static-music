@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Static Web Music Player</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <style>
+    :root {
+      color-scheme: light dark;
+    }
+    body {
+      font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top, rgba(99,102,241,0.15), transparent), #0f172a;
+      color: #f8fafc;
+      min-height: 100vh;
+    }
+    .glass {
+      background: rgba(15, 23, 42, 0.65);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 1.25rem;
+      box-shadow: 0 25px 60px rgba(15, 23, 42, 0.45);
+    }
+    .playlist-item button:hover {
+      transform: translateX(4px);
+    }
+    input[type="range"] {
+      accent-color: #818cf8;
+    }
+    @media (max-width: 640px) {
+      .controls-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.75rem;
+      }
+    }
+  </style>
+</head>
+<body class="px-4 py-10 sm:px-8">
+  <main class="max-w-5xl mx-auto space-y-8">
+    <header class="text-center space-y-2">
+      <p class="text-indigo-300 text-sm uppercase tracking-[0.35em]">Client-side audio</p>
+      <h1 class="text-4xl font-semibold">Static Web Music Player</h1>
+      <p class="text-slate-300 max-w-2xl mx-auto">
+        Drop your MP3/OGG files into the <code>music/</code> folder or load local files on the fly. Everything runs in the browser, so it is ready for GitHub Pages out of the box.
+      </p>
+    </header>
+
+    <section class="glass p-6 sm:p-10 grid lg:grid-cols-3 gap-8">
+      <div class="lg:col-span-1 space-y-4">
+        <div class="flex items-center justify-between">
+          <h2 class="text-xl font-semibold">Playlist</h2>
+          <span id="track-count" class="text-sm text-slate-400"></span>
+        </div>
+        <ul id="playlist" class="space-y-2 max-h-[420px] overflow-y-auto pe-2"></ul>
+      </div>
+
+      <div class="lg:col-span-2 space-y-6">
+        <div class="space-y-2">
+          <p class="text-sm uppercase tracking-[0.3em] text-indigo-400">Now playing</p>
+          <h3 id="track-title" class="text-2xl font-semibold">—</h3>
+          <p id="track-artist" class="text-slate-400">Select a track to start listening</p>
+        </div>
+
+        <div class="space-y-4">
+          <div class="flex items-center justify-between text-sm text-slate-300">
+            <span id="current-time">0:00</span>
+            <span id="total-duration">0:00</span>
+          </div>
+          <input id="seek-bar" type="range" min="0" max="100" value="0" step="0.1" class="w-full">
+        </div>
+
+        <div class="grid controls-grid grid-cols-4 items-center gap-4">
+          <button id="prev-btn" class="px-4 py-3 rounded-xl border border-indigo-500/30 hover:bg-indigo-500/10 transition">⏮️ Prev</button>
+          <button id="play-btn" class="col-span-2 px-4 py-3 rounded-xl bg-indigo-500 text-white font-semibold hover:bg-indigo-400 transition">▶️ Play</button>
+          <button id="next-btn" class="px-4 py-3 rounded-xl border border-indigo-500/30 hover:bg-indigo-500/10 transition">⏭️ Next</button>
+        </div>
+
+        <div class="space-y-4">
+          <div class="flex items-center justify-between gap-4">
+            <label class="text-sm text-slate-300 flex-1">
+              Volume
+              <input id="volume-bar" type="range" min="0" max="1" step="0.01" value="0.8" class="w-full mt-1">
+            </label>
+            <button id="mute-btn" class="px-4 py-2 rounded-xl border border-slate-500/40 hover:bg-slate-500/10 transition">Mute</button>
+          </div>
+          <label class="flex flex-col gap-2 text-sm text-slate-300">
+            Add local tracks (stays in this session only)
+            <input id="file-input" type="file" accept="audio/mpeg,audio/ogg" multiple class="file:bg-indigo-500 file:border-0 file:rounded-lg file:px-4 file:py-2 file:text-sm file:text-white file:mr-4" />
+          </label>
+        </div>
+
+        <div class="text-xs text-slate-400 space-y-2">
+          <p>Keyboard shortcuts: <strong>Space</strong> to toggle play/pause, <strong>← / →</strong> to seek ±5 seconds.</p>
+          <p>Player state auto-saves every few seconds so you can pick up where you left off.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="glass p-6 sm:p-8 space-y-4 text-sm text-slate-200">
+      <h2 class="text-xl font-semibold">By: Yonics12</h2>
+      <ol class="list-decimal ps-5 space-y-3">
+        <li>
+          <strong>Repo structure:</strong> keep <code>index.html</code> at the root, store audio in <code>music/</code>, and optional assets in <code>assets/</code>. Reference tracks as <code>music/your-song.mp3</code> in the playlist array inside the script.
+        </li>
+      </ol>
+    </section>
+  </main>
+
+  <audio id="audio"></audio>
+
+  <script>
+    const playlistEl = document.getElementById('playlist');
+    const trackCountEl = document.getElementById('track-count');
+    const trackTitleEl = document.getElementById('track-title');
+    const trackArtistEl = document.getElementById('track-artist');
+    const audio = document.getElementById('audio');
+    const currentTimeEl = document.getElementById('current-time');
+    const totalDurationEl = document.getElementById('total-duration');
+    const seekBar = document.getElementById('seek-bar');
+    const volumeBar = document.getElementById('volume-bar');
+    const playBtn = document.getElementById('play-btn');
+    const prevBtn = document.getElementById('prev-btn');
+    const nextBtn = document.getElementById('next-btn');
+    const muteBtn = document.getElementById('mute-btn');
+    const fileInput = document.getElementById('file-input');
+
+    const STORAGE_KEY = 'staticWebPlayerState:v1';
+    let isSeeking = false;
+    let lastSaved = 0;
+
+    const basePlaylist = [
+      { title: 'plenka - When You Find Me (Jumpstyle remix prod.me) - Jakon Vedal', artist: 'plenka', src: 'music/plenka - When You Find Me (Jumpstyle remix prod.me) - Jakon Vedal.mp3' },
+    ];
+
+    let playlist = [...basePlaylist];
+    let currentTrackIndex = playlist.length ? 0 : -1;
+
+    function formatTime(seconds) {
+      if (!Number.isFinite(seconds)) return '0:00';
+      const minutes = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60).toString().padStart(2, '0');
+      return `${minutes}:${secs}`;
+    }
+
+    function renderPlaylist() {
+      playlistEl.innerHTML = '';
+      playlist.forEach((track, index) => {
+        const li = document.createElement('li');
+        li.className = 'playlist-item';
+        const isActive = index === currentTrackIndex;
+        li.innerHTML = `
+          <button data-index="${index}" class="w-full text-left px-4 py-3 rounded-2xl border ${isActive ? 'border-indigo-400 bg-indigo-500/10 text-white' : 'border-transparent bg-slate-800/50 text-slate-200'} transition flex items-center justify-between gap-4">
+            <span>
+              <span class="block font-semibold">${track.title || 'Untitled'}</span>
+              <span class="block text-sm text-slate-400">${track.artist || 'Unknown artist'}</span>
+            </span>
+            <span class="text-xs text-slate-400">${track.src.startsWith('blob:') ? 'Local' : 'dir'}</span>
+          </button>
+        `;
+        playlistEl.appendChild(li);
+      });
+      trackCountEl.textContent = `${playlist.length} track${playlist.length === 1 ? '' : 's'}`;
+    }
+
+    function loadTrack(index, resumeTime = 0) {
+      if (index < 0 || index >= playlist.length) return;
+      currentTrackIndex = index;
+      const track = playlist[index];
+      audio.src = track.src;
+      trackTitleEl.textContent = track.title;
+      trackArtistEl.textContent = track.artist || 'Unknown artist';
+      renderPlaylist();
+      audio.currentTime = resumeTime;
+      saveState();
+    }
+
+    function togglePlay() {
+      if (!audio.src) {
+        if (playlist.length) {
+          loadTrack(0);
+        } else {
+          return;
+        }
+      }
+      if (audio.paused) {
+        audio.play();
+      } else {
+        audio.pause();
+      }
+    }
+
+    function playNext() {
+      if (!playlist.length) return;
+      const nextIndex = (currentTrackIndex + 1) % playlist.length;
+      loadTrack(nextIndex);
+      audio.play();
+    }
+
+    function playPrev() {
+      if (!playlist.length) return;
+      const prevIndex = (currentTrackIndex - 1 + playlist.length) % playlist.length;
+      loadTrack(prevIndex);
+      audio.play();
+    }
+
+    function updatePlayButton() {
+      playBtn.textContent = audio.paused ? '▶️ Play' : '⏸️ Pause';
+    }
+
+    function syncSeekBar() {
+      if (!isSeeking && audio.duration) {
+        seekBar.value = (audio.currentTime / audio.duration) * 100;
+      }
+      currentTimeEl.textContent = formatTime(audio.currentTime);
+    }
+
+    function saveState() {
+      if (!playlist.length || currentTrackIndex < 0) return;
+      const payload = {
+        trackIndex: currentTrackIndex,
+        time: audio.currentTime,
+        volume: audio.volume,
+        muted: audio.muted,
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    }
+
+    function restoreState() {
+      try {
+        const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
+        if (!stored) return;
+        if (typeof stored.volume === 'number') {
+          audio.volume = stored.volume;
+          volumeBar.value = stored.volume;
+        }
+        audio.muted = Boolean(stored.muted);
+        muteBtn.textContent = audio.muted ? 'Unmute' : 'Mute';
+        if (typeof stored.trackIndex === 'number' && playlist[stored.trackIndex]) {
+          loadTrack(stored.trackIndex, stored.time || 0);
+        }
+      } catch (err) {
+        console.warn('Failed to restore state', err);
+      }
+    }
+
+    playlistEl.addEventListener('click', (event) => {
+      const button = event.target.closest('button[data-index]');
+      if (!button) return;
+      const index = Number(button.dataset.index);
+      loadTrack(index);
+      audio.play();
+    });
+
+    playBtn.addEventListener('click', togglePlay);
+    nextBtn.addEventListener('click', playNext);
+    prevBtn.addEventListener('click', playPrev);
+
+    audio.addEventListener('play', updatePlayButton);
+    audio.addEventListener('pause', updatePlayButton);
+    audio.addEventListener('ended', playNext);
+
+    audio.addEventListener('loadedmetadata', () => {
+      totalDurationEl.textContent = formatTime(audio.duration);
+    });
+
+    audio.addEventListener('timeupdate', () => {
+      syncSeekBar();
+      const now = Date.now();
+      if (now - lastSaved > 2000) {
+        saveState();
+        lastSaved = now;
+      }
+    });
+
+    seekBar.addEventListener('input', () => {
+      isSeeking = true;
+      if (audio.duration) {
+        const preview = (seekBar.value / 100) * audio.duration;
+        currentTimeEl.textContent = formatTime(preview);
+      }
+    });
+
+    seekBar.addEventListener('change', () => {
+      if (audio.duration) {
+        audio.currentTime = (seekBar.value / 100) * audio.duration;
+        saveState();
+      }
+      isSeeking = false;
+    });
+
+    volumeBar.addEventListener('input', () => {
+      audio.volume = Number(volumeBar.value);
+      audio.muted = false;
+      muteBtn.textContent = 'Mute';
+      saveState();
+    });
+
+    muteBtn.addEventListener('click', () => {
+      audio.muted = !audio.muted;
+      muteBtn.textContent = audio.muted ? 'Unmute' : 'Mute';
+      saveState();
+    });
+
+    fileInput.addEventListener('change', () => {
+      const files = Array.from(fileInput.files);
+      files.forEach((file) => {
+        const objectURL = URL.createObjectURL(file);
+        playlist.push({
+          title: file.name.replace(/\.[^/.]+$/, ''),
+          artist: 'Local file',
+          src: objectURL,
+        });
+      });
+      renderPlaylist();
+      if (currentTrackIndex === -1 && playlist.length) {
+        loadTrack(0);
+      }
+    });
+
+    document.addEventListener('keydown', (event) => {
+      const tag = event.target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || event.target.isContentEditable) return;
+      if (event.code === 'Space') {
+        event.preventDefault();
+        togglePlay();
+      }
+      if (event.code === 'ArrowRight') {
+        audio.currentTime = Math.min(audio.duration || audio.currentTime + 5, audio.currentTime + 5);
+      }
+      if (event.code === 'ArrowLeft') {
+        audio.currentTime = Math.max(0, audio.currentTime - 5);
+      }
+    });
+
+    renderPlaylist();
+    restoreState();
+  </script>
+</body>
+</html>
